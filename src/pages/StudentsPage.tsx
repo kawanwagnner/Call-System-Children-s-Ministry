@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Search } from 'lucide-react';
-import type { Student, StudentWithStatus, Group, GroupName } from '../lib/database.types';
+import { Plus, Edit2, Trash2, Search, Eye, X } from 'lucide-react';
+import type { Student, Group, GroupName } from '../lib/database.types';
 import { StudentForm } from '../components/StudentForm';
+import { Avatar } from '../components/Avatar';
 import { useNotificationContext, useConfirmContext } from '../App';
 
 export function StudentsPage() {
   const { showSuccess, showError } = useNotificationContext();
   const { showConfirm } = useConfirmContext();
-  const [students, setStudents] = useState<StudentWithStatus[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +17,7 @@ export function StudentsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'Ativo' | 'Faltoso' | 'Inativo'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     loadData();
@@ -23,13 +25,43 @@ export function StudentsPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [studentsRes, groupsRes] = await Promise.all([
-      supabase.from('v_student_status').select('*').order('full_name'),
-      supabase.from('groups').select('*')
-    ]);
+    
+    // Get students with groups and photos
+    const { data: studentsData } = await supabase
+      .from('students')
+      .select(`
+        *,
+        groups:group_id(name)
+      `)
+      .order('full_name');
 
-    if (studentsRes.data) setStudents(studentsRes.data);
-    if (groupsRes.data) setGroups(groupsRes.data);
+    // Get status data from view
+    const { data: statusData } = await supabase
+      .from('v_student_status')
+      .select('student_id, status');
+
+    // Get groups
+    const { data: groupsData } = await supabase
+      .from('groups')
+      .select('*');
+
+    if (studentsData && statusData) {
+      // Merge student data with status
+      const studentsWithStatus = studentsData.map((student: any) => {
+        const statusInfo = statusData.find((s: any) => s.student_id === student.id);
+        return {
+          student_id: student.id,
+          full_name: student.full_name,
+          photo_url: student.photo_url,
+          group_name: student.groups?.name || null,
+          status: (statusInfo as any)?.status || 'Ativo',
+          reference_present_at: new Date().toISOString().split('T')[0]
+        };
+      });
+      setStudents(studentsWithStatus);
+    }
+    
+    if (groupsData) setGroups(groupsData);
     setLoading(false);
   };
 
@@ -58,6 +90,13 @@ export function StudentsPage() {
     if (data) {
       setEditingStudent(data);
       setShowForm(true);
+    }
+  };
+
+  const handleView = async (studentId: string) => {
+    const { data } = await supabase.from('students').select('*').eq('id', studentId).single();
+    if (data) {
+      setViewingStudent(data);
     }
   };
 
@@ -140,7 +179,14 @@ export function StudentsPage() {
       <div className="grid gap-4">
         {filteredStudents.map((student) => (
           <div key={student.student_id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <Avatar 
+                src={student.photo_url} 
+                name={student.full_name} 
+                size="md" 
+                onClick={() => handleView(student.student_id)}
+                className="cursor-pointer border-2 border-gray-300"
+              />
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-lg font-semibold text-gray-900">{student.full_name}</h3>
@@ -154,14 +200,23 @@ export function StudentsPage() {
               </div>
               <div className="flex gap-2">
                 <button
+                  onClick={() => handleView(student.student_id)}
+                  className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  title="Ver detalhes"
+                >
+                  <Eye size={18} />
+                </button>
+                <button
                   onClick={() => handleEdit(student.student_id)}
                   className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Editar"
                 >
                   <Edit2 size={18} />
                 </button>
                 <button
                   onClick={() => handleDelete(student.student_id)}
                   className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Excluir"
                 >
                   <Trash2 size={18} />
                 </button>
@@ -183,6 +238,107 @@ export function StudentsPage() {
           groups={groups}
           onClose={handleFormClose}
         />
+      )}
+
+      {/* Student Details Modal */}
+      {viewingStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-2xl font-bold text-gray-900">Detalhes do Aluno</h2>
+              <button
+                onClick={() => setViewingStudent(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Photo and Basic Info */}
+              <div className="flex flex-col items-center text-center space-y-4">
+                <Avatar 
+                  src={viewingStudent.photo_url} 
+                  name={viewingStudent.full_name} 
+                  size="xl"
+                  className="w-24 h-24 text-xl border-2 border-gray-300"
+                />
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{viewingStudent.full_name}</h3>
+                  <p className="text-gray-600">
+                    {viewingStudent.birth_date 
+                      ? `${new Date().getFullYear() - new Date(viewingStudent.birth_date).getFullYear()} anos`
+                      : 'Idade não informada'
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Details Grid */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Sexo</label>
+                    <p className="text-gray-900">
+                      {viewingStudent.sex === 'M' ? 'Masculino' : viewingStudent.sex === 'F' ? 'Feminino' : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Data de Nascimento</label>
+                    <p className="text-gray-900">
+                      {viewingStudent.birth_date 
+                        ? new Date(viewingStudent.birth_date).toLocaleDateString('pt-BR')
+                        : '—'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Grupo</label>
+                  <p className="text-gray-900">
+                    {groups.find(g => g.id === viewingStudent.group_id)?.name || '—'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Responsável</label>
+                    <p className="text-gray-900">{viewingStudent.guardian_name || '—'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Contato</label>
+                    <p className="text-gray-900">{viewingStudent.guardian_contact || '—'}</p>
+                  </div>
+                </div>
+
+                {viewingStudent.notes && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Observações</label>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-gray-900 whitespace-pre-wrap">{viewingStudent.notes}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setViewingStudent(null);
+                    handleEdit(viewingStudent.id);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                >
+                  Editar Aluno
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

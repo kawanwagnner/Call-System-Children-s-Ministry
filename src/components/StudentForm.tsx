@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Student, Group, StudentInsert, Sex, GroupName } from '../lib/database.types';
+import type { Student, Group, StudentInsert, Sex } from '../lib/database.types';
 import { useNotificationContext } from '../App';
+import { Avatar } from './Avatar';
 
 interface StudentFormProps {
   student: Student | null;
@@ -20,8 +21,11 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
     guardian_name: null,
     guardian_contact: null,
     notes: null,
+    photo_url: null,
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (student) {
@@ -33,11 +37,115 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
         guardian_name: student.guardian_name,
         guardian_contact: student.guardian_contact,
         notes: student.notes,
+        photo_url: student.photo_url,
       });
+      setPhotoPreview(student.photo_url);
     }
   }, [student]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const resizeImage = (file: File, maxWidth: number = 400, maxHeight: number = 400, quality: number = 0.8): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const resizedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(resizedFile);
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showError('Erro', 'Por favor, selecione apenas arquivos de imagem');
+      return;
+    }
+
+    // Validate file size (max 5MB before compression)
+    if (file.size > 5 * 1024 * 1024) {
+      showError('Erro', 'A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      // Resize image before upload
+      const resizedFile = await resizeImage(file);
+      
+      // Create unique filename
+      const fileExt = 'jpg'; // Always save as jpg after compression
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `student-photos/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('student-photos')
+        .upload(filePath, resizedFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('student-photos')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, photo_url: publicUrl });
+      setPhotoPreview(publicUrl);
+      showSuccess('Foto carregada com sucesso!');
+
+    } catch (error: any) {
+      showError('Erro ao carregar foto', error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhoto = () => {
+    setFormData({ ...formData, photo_url: null });
+    setPhotoPreview(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
@@ -52,7 +160,8 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
             group_id: formData.group_id,
             guardian_name: formData.guardian_name,
             guardian_contact: formData.guardian_contact,
-            notes: formData.notes
+            notes: formData.notes,
+            photo_url: formData.photo_url
           })
           .eq('id', student.id);
 
@@ -68,7 +177,8 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
             group_id: formData.group_id,
             guardian_name: formData.guardian_name,
             guardian_contact: formData.guardian_contact,
-            notes: formData.notes
+            notes: formData.notes,
+            photo_url: formData.photo_url
           }]);
 
         if (error) throw error;
@@ -114,6 +224,56 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          {/* Photo Upload Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Foto do Aluno
+            </label>
+            <div className="flex items-center gap-4">
+              <Avatar 
+                src={photoPreview || formData.photo_url} 
+                name={formData.full_name || 'Aluno'} 
+                size="xl"
+              />
+              <div className="flex-1">
+                <input
+                  type="file"
+                  id="photo-upload"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  disabled={uploading}
+                />
+                <div className="space-y-2">
+                  <label
+                    htmlFor="photo-upload"
+                    className={`
+                      inline-flex items-center gap-2 px-4 py-2 
+                      border border-gray-300 rounded-lg cursor-pointer
+                      hover:bg-gray-50 transition-colors text-sm
+                      ${uploading ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
+                  >
+                    <Upload size={16} />
+                    {uploading ? 'Carregando...' : 'Escolher Foto'}
+                  </label>
+                  {(photoPreview || formData.photo_url) && (
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="block px-4 py-2 text-sm text-red-600 hover:text-red-700 transition-colors"
+                    >
+                      Remover Foto
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Máximo 5MB. A imagem será redimensionada automaticamente.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">

@@ -32,6 +32,7 @@ export interface Database {
           guardian_name: string | null;
           guardian_contact: string | null;
           notes: string | null;
+          photo_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -43,6 +44,7 @@ export interface Database {
           guardian_name?: string | null;
           guardian_contact?: string | null;
           notes?: string | null;
+          photo_url?: string | null;
           created_at?: string;
         };
         Update: {
@@ -54,6 +56,7 @@ export interface Database {
           guardian_name?: string | null;
           guardian_contact?: string | null;
           notes?: string | null;
+          photo_url?: string | null;
           created_at?: string;
         };
       };
