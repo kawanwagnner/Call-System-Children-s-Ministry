@@ -222,6 +222,7 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
               required
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              placeholder="Ex: João Silva Santos"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -330,6 +331,7 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
                 type="text"
                 value={formData.guardian_name || ''}
                 onChange={(e) => setFormData({ ...formData, guardian_name: e.target.value || null })}
+                placeholder="Ex: Maria Silva"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -356,6 +358,7 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
               value={formData.notes || ''}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value || null })}
               rows={3}
+              placeholder="Informações adicionais sobre o aluno..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
