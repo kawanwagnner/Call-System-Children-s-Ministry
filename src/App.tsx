@@ -1,4 +1,4 @@
-import { useState, createContext, useContext } from 'react';
+import { useState, createContext, useContext, useEffect } from 'react';
 import { Users, BookOpen, CheckSquare, BarChart3, Menu, X, Home } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { StudentsPage } from './pages/StudentsPage';
@@ -6,6 +6,7 @@ import { LessonsPage } from './pages/LessonsPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { NotificationContainer } from './components/NotificationContainer';
+import { LoadingScreen } from './components/LoadingScreen';
 import { useNotifications } from './hooks/useNotifications';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useConfirmDialog } from './hooks/useConfirmDialog';
@@ -54,6 +55,7 @@ export const useConfirmContext = () => {
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const {
     notifications,
     removeNotification,
@@ -64,6 +66,15 @@ function App() {
   } = useNotifications();
 
   const { dialogState, showConfirm } = useConfirmDialog();
+
+  // Simular carregamento inicial
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500); // 2.5 segundos de loading
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const notificationContextValue = {
     showSuccess,
@@ -100,6 +111,11 @@ function App() {
         return <HomePage onNavigate={setCurrentPage} />;
     }
   };
+
+  // Show loading screen
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <NotificationContext.Provider value={notificationContextValue}>
