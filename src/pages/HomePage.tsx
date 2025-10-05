@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Users, BookOpen, CheckSquare, BarChart3, Calendar, Clock } from 'lucide-react';
 import { LessonForm } from '../components/LessonForm';
+import { supabase } from '../lib/supabase';
 
 interface HomePageProps {
   onNavigate: (page: 'students' | 'lessons' | 'attendance' | 'reports') => void;
@@ -8,6 +9,53 @@ interface HomePageProps {
 
 export function HomePage({ onNavigate }: HomePageProps) {
   const [showLessonForm, setShowLessonForm] = useState(false);
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalLessons: 0,
+    lastLessonDate: null as string | null
+  });
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Carregar estatísticas
+      const [studentsRes, lessonsRes, recentLessonsRes] = await Promise.all([
+        supabase.from('students').select('id', { count: 'exact' }),
+        supabase.from('lessons').select('id', { count: 'exact' }),
+        supabase.from('lessons').select('*').order('date', { ascending: false }).limit(1)
+      ]);
+
+      // Carregar atividade recente (últimas 5 aulas com informações de presença)
+      const { data: recentLessons } = await supabase
+        .from('lessons')
+        .select(`
+          *,
+          attendance(count)
+        `)
+        .order('date', { ascending: false })
+        .limit(5);
+
+      setStats({
+        totalStudents: studentsRes.count || 0,
+        totalLessons: lessonsRes.count || 0,
+        lastLessonDate: (recentLessonsRes.data as any)?.[0]?.date || null
+      });
+
+      setRecentActivity(recentLessons || []);
+
+    } catch (error) {
+      console.error('Erro ao carregar dados do dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const quickActions = [
     {
@@ -46,6 +94,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
   const handleLessonFormClose = () => {
     setShowLessonForm(false);
+    loadDashboardData(); // Recarrega dados quando uma aula é criada
   };
 
   const today = new Date().toLocaleDateString('pt-BR', { 
@@ -104,7 +153,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <Users size={24} className="text-blue-600" />
               <h3 className="text-lg font-semibold text-gray-900">Alunos</h3>
             </div>
-            <p className="text-3xl font-bold text-gray-900">-</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {loading ? '...' : stats.totalStudents}
+            </p>
             <p className="text-sm text-gray-500">Total cadastrados</p>
           </div>
 
@@ -113,7 +164,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <BookOpen size={24} className="text-purple-600" />
               <h3 className="text-lg font-semibold text-gray-900">Aulas</h3>
             </div>
-            <p className="text-3xl font-bold text-gray-900">-</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {loading ? '...' : stats.totalLessons}
+            </p>
             <p className="text-sm text-gray-500">Total cadastradas</p>
           </div>
 
@@ -122,7 +175,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <Clock size={24} className="text-green-600" />
               <h3 className="text-lg font-semibold text-gray-900">Última Aula</h3>
             </div>
-            <p className="text-lg font-bold text-gray-900">-</p>
+            <p className="text-lg font-bold text-gray-900">
+              {loading ? '...' : 
+                stats.lastLessonDate 
+                  ? new Date(stats.lastLessonDate).toLocaleDateString('pt-BR')
+                  : 'Nenhuma'
+              }
+            </p>
             <p className="text-sm text-gray-500">Data da última aula</p>
           </div>
         </div>
@@ -142,9 +201,33 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
         
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-center py-8">
-            Nenhuma atividade recente
-          </p>
+          {loading ? (
+            <p className="text-gray-500 text-center py-8">Carregando...</p>
+          ) : recentActivity.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma atividade recente
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {recentActivity.map((lesson: any) => (
+                <div key={lesson.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{lesson.title}</h4>
+                      <p className="text-sm text-gray-500">
+                        {new Date(lesson.date).toLocaleDateString('pt-BR')}
+                        {lesson.teacher && ` • Professor: ${lesson.teacher}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {lesson.attendance?.length || 0} presenças
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
