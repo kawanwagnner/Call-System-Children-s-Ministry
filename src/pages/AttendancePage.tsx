@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
-import { Check, X, Search } from "lucide-react";
+import { Check, X, Search, Plus } from "lucide-react";
 import {
   ConfirmationModal,
   SuccessModal,
@@ -9,6 +9,7 @@ import { useNotificationContext } from "../App";
 import { useLessons } from "../hooks/useLessonQueries";
 import { useStudentsWithStatus } from "../hooks/useStudentQueries";
 import { useAttendance } from "../hooks/useAttendanceQueries";
+import { LessonForm } from "../components/LessonForm";
 
 interface AttendancePageProps {
   context?: "ministerio" | "recepcao";
@@ -28,6 +29,7 @@ export function AttendancePage({
   const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showLessonForm, setShowLessonForm] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [confirmationData, setConfirmationData] = useState<{
@@ -293,22 +295,40 @@ export function AttendancePage({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {context === "recepcao" ? "Selecionar Evento" : "Selecionar Aula"}
         </label>
-        <select
-          value={selectedLessonId}
-          onChange={(e) => setSelectedLessonId(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">
-            {context === "recepcao"
-              ? "Selecione um evento"
-              : "Selecione uma aula"}
-          </option>
-          {lessons.map((lesson) => (
-            <option key={lesson.id} value={lesson.id}>
-              {formatDate(lesson.date)} - {lesson.title}
+        <div className="flex gap-2">
+          <select
+            value={selectedLessonId}
+            onChange={(e) => setSelectedLessonId(e.target.value)}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">
+              {context === "recepcao"
+                ? "Selecione um evento"
+                : "Selecione uma aula"}
             </option>
-          ))}
-        </select>
+            {lessons.map((lesson) => (
+              <option key={lesson.id} value={lesson.id}>
+                {formatDate(lesson.date)} - {lesson.title}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setShowLessonForm(true)}
+            className={`px-4 py-2 ${
+              context === "recepcao"
+                ? "bg-teal-600 hover:bg-teal-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap`}
+            title={
+              context === "recepcao" ? "Criar novo evento" : "Criar nova aula"
+            }
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">
+              {context === "recepcao" ? "Novo Evento" : "Nova Aula"}
+            </span>
+          </button>
+        </div>
 
         {selectedLesson && (
           <div className="mt-4 p-4 bg-gray-50 rounded-lg">
@@ -508,6 +528,14 @@ export function AttendancePage({
           isOpen={showSuccessModal}
           onClose={handleCloseSuccess}
           resumo={successData}
+        />
+      )}
+
+      {/* Modal de Nova Aula/Evento */}
+      {showLessonForm && (
+        <LessonForm
+          context={context}
+          onClose={() => setShowLessonForm(false)}
         />
       )}
     </div>

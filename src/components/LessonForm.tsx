@@ -6,7 +6,7 @@ import { useNotificationContext } from "../App";
 import { useGroups } from "../hooks/useGroupQueries";
 
 interface LessonFormProps {
-  lesson: Lesson | null;
+  lesson?: Lesson | null;
   onClose: () => void;
   context: "ministerio" | "recepcao";
 }
