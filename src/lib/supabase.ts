@@ -4,8 +4,10 @@ import type { Database } from './database.types';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Exportar status das variáveis de ambiente
+export const hasEnvironmentVariables = !!(supabaseUrl && supabaseAnonKey);
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Criar cliente apenas se as variáveis existirem
+export const supabase = hasEnvironmentVariables 
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey)
+  : null as any; // Será tratado no App.tsx
