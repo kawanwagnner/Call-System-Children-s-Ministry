@@ -287,22 +287,28 @@ export function AttendancePage({
   const selectedLesson = lessons.find((l) => l.id === selectedLessonId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">
+    <div className="space-y-4 px-4 sm:px-0 pb-24 sm:pb-6">
+      <div className="flex items-center justify-between pt-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
           {context === "recepcao" ? "Check-in" : "Chamada"}
         </h1>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {context === "recepcao" ? "Selecionar Evento" : "Selecionar Aula"}
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={selectedLessonId}
             onChange={(e) => setSelectedLessonId(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 1rem center",
+              paddingRight: "2.5rem",
+            }}
           >
             <option value="">
               {context === "recepcao"
@@ -317,19 +323,17 @@ export function AttendancePage({
           </select>
           <button
             onClick={() => setShowLessonForm(true)}
-            className={`px-4 py-2 ${
+            className={`w-full sm:w-auto px-4 py-2 ${
               context === "recepcao"
                 ? "bg-teal-600 hover:bg-teal-700"
                 : "bg-blue-600 hover:bg-blue-700"
-            } text-white rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap`}
+            } text-white rounded-lg transition-colors flex items-center justify-center gap-2`}
             title={
               context === "recepcao" ? "Criar novo evento" : "Criar nova aula"
             }
           >
             <Plus size={20} />
-            <span className="hidden sm:inline">
-              {context === "recepcao" ? "Novo Evento" : "Nova Aula"}
-            </span>
+            <span>{context === "recepcao" ? "Novo Evento" : "Nova Aula"}</span>
           </button>
         </div>
 
@@ -372,8 +376,8 @@ export function AttendancePage({
 
       {selectedLessonId && (
         <>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-            <div className="flex flex-col md:flex-row gap-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 space-y-4">
+            <div className="flex flex-col gap-4">
               <div className="flex-1 relative">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -416,12 +420,12 @@ export function AttendancePage({
               return (
                 <div
                   key={memberId}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow"
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-semibold text-gray-900">
+                      <div className="flex items-start sm:items-center gap-2 sm:gap-3 mb-2 flex-wrap">
+                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
                           {student.full_name}
                         </h3>
                         <span
@@ -433,7 +437,7 @@ export function AttendancePage({
                         </span>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-xs sm:text-sm text-gray-600">
                           {context === "recepcao" ? "Célula/Min." : "Grupo"}:{" "}
                           {student.group_name || "—"}
                         </p>
@@ -450,28 +454,30 @@ export function AttendancePage({
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => toggleAttendance(memberId, true)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border-2 transition-all text-sm ${
                           attendance[memberId] === true
                             ? "bg-emerald-600 border-emerald-600 text-white"
                             : "bg-white border-gray-300 text-gray-700 hover:border-emerald-600"
                         }`}
                       >
                         <Check size={18} />
-                        Presente
+                        <span className="hidden sm:inline">Presente</span>
+                        <span className="sm:hidden">✓</span>
                       </button>
                       <button
                         onClick={() => toggleAttendance(memberId, false)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border-2 transition-all text-sm ${
                           attendance[memberId] === false
                             ? "bg-red-600 border-red-600 text-white"
                             : "bg-white border-gray-300 text-gray-700 hover:border-red-600"
                         }`}
                       >
                         <X size={18} />
-                        Ausente
+                        <span className="hidden sm:inline">Ausente</span>
+                        <span className="sm:hidden">✗</span>
                       </button>
                     </div>
                   </div>
@@ -488,11 +494,11 @@ export function AttendancePage({
             )}
           </div>
 
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 rounded-2xl shadow-lg">
+          <div className="fixed sm:sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 sm:rounded-2xl shadow-lg z-10">
             <button
               onClick={handleSave}
               disabled={saving}
-              className={`w-full px-6 py-3 ${
+              className={`w-full px-6 py-3 text-base sm:text-lg ${
                 context === "recepcao"
                   ? "bg-teal-600 hover:bg-teal-700"
                   : "bg-blue-600 hover:bg-blue-700"

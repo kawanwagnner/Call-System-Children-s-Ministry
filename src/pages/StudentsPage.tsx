@@ -140,27 +140,30 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">
+    <div className="space-y-4 px-4 sm:px-0 pb-6">
+      <div className="flex items-center justify-between pt-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
           {context === "recepcao" ? "Membros" : "Alunos"}
         </h1>
         <button
           onClick={() => setShowForm(true)}
-          className={`flex items-center gap-2 px-4 py-2 ${
+          className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base ${
             context === "recepcao"
               ? "bg-teal-600 hover:bg-teal-700"
               : "bg-blue-600 hover:bg-blue-700"
           } text-white rounded-xl transition-colors shadow-sm`}
         >
-          <Plus size={20} />
-          {context === "recepcao" ? "Novo Membro" : "Novo Aluno"}
+          <Plus size={18} className="sm:w-5 sm:h-5" />
+          <span className="hidden sm:inline">
+            {context === "recepcao" ? "Novo Membro" : "Novo Aluno"}
+          </span>
+          <span className="sm:hidden">Novo</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 space-y-3">
+        <div className="flex flex-col gap-3">
+          <div className="relative">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               size={20}
@@ -172,14 +175,14 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
               }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-3 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <select
             value={filterGroup}
             onChange={(e) => setFilterGroup(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="all">
               {context === "recepcao"
@@ -199,7 +202,7 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
               onChange={(e) =>
                 setFilterMemberType(e.target.value as MemberType | "all")
               }
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-4 py-3 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
             >
               <option value="all">Todos os Tipos</option>
               <option value="Membro">Membros</option>
@@ -210,7 +213,7 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="all">Todos os Status</option>
             {context === "recepcao" ? (
@@ -231,27 +234,27 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {filteredStudents.map((student) => (
           <div
             key={student.student_id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-6 hover:shadow-md transition-shadow"
           >
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <Avatar
                 src={student.photo_url}
                 name={student.full_name}
                 size="md"
                 onClick={() => handleView(student.student_id)}
-                className="cursor-pointer border-2 border-gray-300"
+                className="cursor-pointer border-2 border-gray-300 flex-shrink-0"
               />
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-2 mb-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                     {student.full_name}
                   </h3>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                    className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getStatusColor(
                       student.status
                     )}`}
                   >
@@ -259,7 +262,7 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
                   </span>
                   {context === "recepcao" && student.member_type && (
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                         student.member_type === "Membro"
                           ? "text-blue-600 bg-blue-50"
                           : "text-purple-600 bg-purple-50"
@@ -269,7 +272,7 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-1 text-xs sm:text-sm text-gray-600">
                   <span>
                     {context === "recepcao" ? "Célula/Min." : "Grupo"}:{" "}
                     {student.group_name || "—"}
@@ -283,7 +286,7 @@ export function StudentsPage({ context = "ministerio" }: StudentsPageProps) {
                     )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={() => handleView(student.student_id)}
                   className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
