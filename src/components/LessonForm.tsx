@@ -159,10 +159,10 @@ export function LessonForm({ lesson, onClose, context }: LessonFormProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Grupo / Turma *
+              {context === "recepcao" ? "Grupo / Turma" : "Grupo / Turma *"}
             </label>
             <select
-              required
+              required={context === "ministerio"}
               value={formData.group_id || ""}
               onChange={(e) =>
                 setFormData({ ...formData, group_id: e.target.value || null })
@@ -177,7 +177,9 @@ export function LessonForm({ lesson, onClose, context }: LessonFormProps) {
               ))}
             </select>
             <p className="mt-1 text-sm text-gray-500">
-              Apenas alunos deste grupo aparecerão na chamada
+              {context === "recepcao"
+                ? "Apenas para organização, não restringe participação"
+                : "Apenas alunos deste grupo aparecerão na chamada"}
             </p>
           </div>
 

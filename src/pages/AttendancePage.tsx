@@ -258,13 +258,16 @@ export function AttendancePage({
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
-      // Se a aula tem um grupo definido, mostrar apenas alunos desse grupo
+      // No ministério: Se a aula tem um grupo definido, mostrar apenas alunos desse grupo
+      // Na recepção: Mostrar sempre todos os membros (eventos são abertos)
       const matchesLessonGroup =
-        !lessonGroupId || (s as any).group_id === lessonGroupId;
+        context === "recepcao" ||
+        !lessonGroupId ||
+        (s as any).group_id === lessonGroupId;
 
       return matchesSearch && matchesLessonGroup;
     });
-  }, [students, searchTerm, selectedLessonId, lessons]);
+  }, [students, searchTerm, selectedLessonId, lessons, context]);
 
   const presentCount = Object.values(attendance).filter(
     (p) => p === true
