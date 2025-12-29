@@ -43,7 +43,9 @@ export function useStudentsWithStatus(context: 'ministerio' | 'recepcao' = 'mini
           const statusInfo = statusData.find((s: any) => s.member_id === member.id);
           return {
             student_id: member.id,
+            member_id: member.id, // Adiciona member_id para compatibilidade com AttendancePage
             id: member.id,
+            group_id: member.group_id, // Adiciona group_id para filtro por grupo da aula
             full_name: member.full_name,
             member_type: member.member_type,
             contact_phone: member.contact_phone,
@@ -83,6 +85,8 @@ export function useStudentsWithStatus(context: 'ministerio' | 'recepcao' = 'mini
           const statusInfo = statusData.find((s: any) => s.student_id === student.id);
           return {
             ...student,
+            student_id: student.id, // Garante que student_id está presente
+            group_id: student.group_id, // Adiciona group_id explicitamente
             group_name: student.groups?.name || null,
             status: statusInfo?.status || 'Sem Registro'
           };

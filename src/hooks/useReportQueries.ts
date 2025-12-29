@@ -5,13 +5,12 @@ import { supabase } from '../lib/supabase';
 export const reportKeys = {
   all: ['reports'] as const,
   context: (context: 'ministerio' | 'recepcao') => [...reportKeys.all, context] as const,
-  data: (context: 'ministerio' | 'recepcao', date: string) => [...reportKeys.context(context), date] as const,
 };
 
 // Hook para obter dados de relatórios
-export function useReportsData(context: 'ministerio' | 'recepcao', selectedDate: string) {
+export function useReportsData(context: 'ministerio' | 'recepcao') {
   return useQuery({
-    queryKey: reportKeys.data(context, selectedDate),
+    queryKey: reportKeys.context(context),
     queryFn: async () => {
       if (context === 'recepcao') {
         // Carregar dados da recepção
@@ -143,14 +142,37 @@ export function useReportsData(context: 'ministerio' | 'recepcao', selectedDate:
             : null
         }));
 
-        // Alunos ausentes (com frequência < 50%)
-        const absentToday = studentStats
+        // Alunos ausentes da última aula registrada
+        let absentToday: any[] = [];
+        let lastLessonDate: string | null = null;
+        
+        if (lessonsRes.data.length > 0) {
+          const lastLesson = lessonsRes.data[0]; // Última aula (já ordenado por data desc)
+          lastLessonDate = lastLesson.date;
+          
+          const absentStudentIds = lastLesson.attendance
+            ?.filter((a: any) => !a.present)
+            .map((a: any) => a.student_id) || [];
+          
+          absentToday = studentsRes.data
+            .filter((s: any) => absentStudentIds.includes(s.id))
+            .map((s: any) => ({
+              full_name: s.full_name,
+              guardian_name: s.guardian_name,
+              guardian_contact: s.guardian_contact,
+              group_name: s.groups?.name
+            }));
+        }
+
+        // Alunos com baixa frequência (< 50%)
+        const lowAttendanceStudents = studentStats
           .filter((s: any) => s.presenca_percent !== null && s.presenca_percent < 50)
           .map((s: any) => ({
             full_name: s.full_name,
             guardian_name: s.guardian_name,
             guardian_contact: s.guardian_contact,
-            group_name: s.group_name
+            group_name: s.group_name,
+            presenca_percent: s.presenca_percent
           }));
 
         // Estatísticas por grupo (simplificado)
@@ -176,6 +198,8 @@ export function useReportsData(context: 'ministerio' | 'recepcao', selectedDate:
 
         return {
           absentToday,
+          lastLessonDate,
+          lowAttendanceStudents,
           studentStats,
           groupStats,
           lessonStats

@@ -42,18 +42,13 @@ interface ReportsPageProps {
 
 export function ReportsPage({ context = "ministerio" }: ReportsPageProps) {
   const { showError } = useNotificationContext();
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
-  );
 
   // React Query hook para carregar dados de relatórios
-  const {
-    data,
-    isLoading: loading,
-    error,
-  } = useReportsData(context, selectedDate);
+  const { data, isLoading: loading, error } = useReportsData(context);
 
   const absentToday = data?.absentToday || [];
+  const lastLessonDate = data?.lastLessonDate || null;
+  const lowAttendanceStudents = data?.lowAttendanceStudents || [];
   const studentStats = data?.studentStats || [];
   const groupStats = data?.groupStats || [];
   const lessonStats = data?.lessonStats || [];
@@ -109,20 +104,6 @@ export function ReportsPage({ context = "ministerio" }: ReportsPageProps) {
       </h1>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {context === "recepcao"
-            ? "Data de Referência"
-            : "Data de Referência (para Ausentes)"}
-        </label>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-3 bg-red-100 rounded-xl">
             <Calendar className="text-red-600" size={24} />
@@ -130,7 +111,9 @@ export function ReportsPage({ context = "ministerio" }: ReportsPageProps) {
           <h2 className="text-xl font-bold text-gray-900">
             {context === "recepcao"
               ? "Membros com Baixa Frequência"
-              : `Ausentes do Dia (${formatDate(selectedDate)})`}
+              : lastLessonDate
+              ? `Ausentes da Última Aula (${formatDate(lastLessonDate)})`
+              : "Ausentes da Última Aula"}
           </h2>
         </div>
 
@@ -138,7 +121,9 @@ export function ReportsPage({ context = "ministerio" }: ReportsPageProps) {
           <p className="text-gray-500 text-center py-8">
             {context === "recepcao"
               ? "Todos os membros têm boa frequência!"
-              : "Nenhum ausente registrado nesta data"}
+              : lastLessonDate
+              ? "Nenhum ausente na última aula! 🎉"
+              : "Nenhuma aula registrada ainda"}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -214,6 +199,95 @@ export function ReportsPage({ context = "ministerio" }: ReportsPageProps) {
           </div>
         )}
       </div>
+
+      {/* Alunos com Baixa Frequência (< 50%) */}
+      {context === "ministerio" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 bg-orange-100 rounded-xl">
+              <Users className="text-orange-600" size={24} />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">
+              Alunos com Baixa Frequência (Menos de 50%)
+            </h2>
+          </div>
+
+          {lowAttendanceStudents.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Todos os alunos têm boa frequência! 🎉
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      Nome
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      Grupo
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      Frequência
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      Responsável
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      Contato
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lowAttendanceStudents.map((student: any, idx: number) => (
+                    <tr
+                      key={idx}
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="py-3 px-4">{student.full_name}</td>
+                      <td className="py-3 px-4">{student.group_name || "—"}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`font-semibold ${
+                            student.presenca_percent < 30
+                              ? "text-red-600"
+                              : student.presenca_percent < 50
+                              ? "text-orange-600"
+                              : "text-yellow-600"
+                          }`}
+                        >
+                          {student.presenca_percent}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {student.guardian_name || "—"}
+                      </td>
+                      <td className="py-3 px-4">
+                        {student.guardian_contact ? (
+                          <a
+                            href={generateWhatsAppLink(
+                              student.guardian_contact,
+                              student.full_name
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-700 hover:text-green-800 underline transition-colors"
+                            title="Enviar mensagem no WhatsApp"
+                          >
+                            {student.guardian_contact}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-3 mb-4">

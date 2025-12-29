@@ -6,14 +6,9 @@ import {
   SuccessModal,
 } from "../components/ConfirmationModal";
 import { useNotificationContext } from "../App";
-import type { GroupName } from "../lib/database.types";
 import { useLessons } from "../hooks/useLessonQueries";
 import { useStudentsWithStatus } from "../hooks/useStudentQueries";
-import { useGroups } from "../hooks/useGroupQueries";
-import {
-  useAttendance,
-  useSaveAttendance,
-} from "../hooks/useAttendanceQueries";
+import { useAttendance } from "../hooks/useAttendanceQueries";
 
 interface AttendancePageProps {
   context?: "ministerio" | "recepcao";
@@ -28,14 +23,11 @@ export function AttendancePage({
   const { data: lessons = [], isLoading: loadingLessons } = useLessons(context);
   const { data: students = [], isLoading: loadingStudents } =
     useStudentsWithStatus(context);
-  const { data: groups = [] } = useGroups(context);
-  const saveAttendanceMutation = useSaveAttendance(context);
 
   const [selectedLessonId, setSelectedLessonId] = useState<string>("");
   const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterGroup, setFilterGroup] = useState<string | "all">("all");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [confirmationData, setConfirmationData] = useState<{
@@ -263,16 +255,14 @@ export function AttendancePage({
       const matchesSearch = s.full_name
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-      const matchesGroup =
-        filterGroup === "all" || s.group_name === filterGroup;
 
       // Se a aula tem um grupo definido, mostrar apenas alunos desse grupo
       const matchesLessonGroup =
         !lessonGroupId || (s as any).group_id === lessonGroupId;
 
-      return matchesSearch && matchesGroup && matchesLessonGroup;
+      return matchesSearch && matchesLessonGroup;
     });
-  }, [students, searchTerm, filterGroup, selectedLessonId, lessons]);
+  }, [students, searchTerm, selectedLessonId, lessons]);
 
   const presentCount = Object.values(attendance).filter(
     (p) => p === true
@@ -330,26 +320,26 @@ export function AttendancePage({
             </p>
             {context === "recepcao" ? (
               <>
-                {selectedLesson.event_type && (
+                {(selectedLesson as any).event_type && (
                   <p className="text-sm text-gray-600">
-                    Tipo: {selectedLesson.event_type}
+                    Tipo: {(selectedLesson as any).event_type}
                   </p>
                 )}
-                {selectedLesson.start_time && (
+                {(selectedLesson as any).start_time && (
                   <p className="text-sm text-gray-600">
-                    Horário: {selectedLesson.start_time}
+                    Horário: {(selectedLesson as any).start_time}
                   </p>
                 )}
-                {selectedLesson.leader && (
+                {(selectedLesson as any).leader && (
                   <p className="text-sm text-gray-600">
-                    Preletor: {selectedLesson.leader}
+                    Preletor: {(selectedLesson as any).leader}
                   </p>
                 )}
               </>
             ) : (
-              selectedLesson.teacher && (
+              (selectedLesson as any).teacher && (
                 <p className="text-sm text-gray-600">
-                  Ministrante: {selectedLesson.teacher}
+                  Ministrante: {(selectedLesson as any).teacher}
                 </p>
               )
             )}
@@ -378,25 +368,6 @@ export function AttendancePage({
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
-              <select
-                value={filterGroup}
-                onChange={(e) =>
-                  setFilterGroup(e.target.value as GroupName | "all")
-                }
-                className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">
-                  {context === "recepcao"
-                    ? "Todas as Células/Ministérios"
-                    : "Todos os Grupos"}
-                </option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.name}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="flex gap-4 text-sm">
@@ -416,7 +387,7 @@ export function AttendancePage({
           </div>
 
           <div className="space-y-3">
-            {filteredStudents.map((student) => {
+            {filteredStudents.map((student: any) => {
               const memberId =
                 context === "recepcao" ? student.member_id : student.student_id;
               return (
