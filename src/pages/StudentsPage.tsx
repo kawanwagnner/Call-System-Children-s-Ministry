@@ -1,74 +1,131 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Edit2, Trash2, Search, Eye, X } from 'lucide-react';
-import type { Student, Group, GroupName } from '../lib/database.types';
+import type { MemberType } from '../lib/database.types';
 import { StudentForm } from '../components/StudentForm';
 import { Avatar } from '../components/Avatar';
 import { useNotificationContext, useConfirmContext } from '../App';
 
-export function StudentsPage() {
+interface StudentsPageProps {
+  context?: 'ministerio' | 'recepcao';
+}
+
+export function StudentsPage({ context = 'ministerio' }: StudentsPageProps) {
   const { showSuccess, showError } = useNotificationContext();
   const { showConfirm } = useConfirmContext();
   const [students, setStudents] = useState<any[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterGroup, setFilterGroup] = useState<GroupName | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'Ativo' | 'Faltoso' | 'Inativo'>('all');
+  const [filterGroup, setFilterGroup] = useState<string | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<string | 'all'>('all');
+  const [filterMemberType, setFilterMemberType] = useState<MemberType | 'all'>('all');
   const [showForm, setShowForm] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
+  const [viewingStudent, setViewingStudent] = useState<any | null>(null);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [context]);
 
   const loadData = async () => {
     setLoading(true);
     
-    // Get students with groups and photos
-    const { data: studentsData } = await supabase
-      .from('students')
-      .select(`
-        *,
-        groups:group_id(name)
-      `)
-      .order('full_name');
+    if (context === 'recepcao') {
+      // Carrega dados da Recepção
+      const { data: membersData } = await supabase
+        .from('reception_members')
+        .select(`
+          *,
+          reception_groups:group_id(name)
+        `)
+        .order('full_name');
 
-    // Get status data from view
-    const { data: statusData } = await supabase
-      .from('v_student_status')
-      .select('student_id, status');
+      // Get status data from view
+      const { data: statusData } = await supabase
+        .from('v_reception_member_status')
+        .select('*');
 
-    // Get groups
-    const { data: groupsData } = await supabase
-      .from('groups')
-      .select('*');
+      // Get groups
+      const { data: groupsData } = await supabase
+        .from('reception_groups')
+        .select('*');
 
-    if (studentsData && statusData) {
-      // Merge student data with status
-      const studentsWithStatus = studentsData.map((student: any) => {
-        const statusInfo = statusData.find((s: any) => s.student_id === student.id);
-        return {
-          student_id: student.id,
-          full_name: student.full_name,
-          photo_url: student.photo_url,
-          group_name: student.groups?.name || null,
-          status: (statusInfo as any)?.status || 'Ativo',
-          reference_present_at: new Date().toISOString().split('T')[0]
-        };
-      });
-      setStudents(studentsWithStatus);
+      if (membersData && statusData) {
+        const membersWithStatus = membersData.map((member: any) => {
+          const statusInfo = statusData.find((s: any) => s.member_id === member.id);
+          return {
+            student_id: member.id,
+            id: member.id,
+            full_name: member.full_name,
+            member_type: member.member_type,
+            contact_phone: member.contact_phone,
+            contact_email: member.contact_email,
+            group_name: member.reception_groups?.name || null,
+            status: (statusInfo as any)?.status || 'Sem Registro',
+            attendance_percentage: (statusInfo as any)?.attendance_percentage || 0,
+            total_events: (statusInfo as any)?.total_events || 0,
+            total_presences: (statusInfo as any)?.total_presences || 0,
+            birth_date: member.birth_date,
+            sex: member.sex,
+            address: member.address,
+            notes: member.notes
+          };
+        });
+        setStudents(membersWithStatus);
+      }
+      
+      if (groupsData) setGroups(groupsData);
+      
+    } else {
+      // Carrega dados do Ministério Infantil (lógica original)
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select(`
+          *,
+          groups:group_id(name)
+        `)
+        .order('full_name');
+
+      const { data: statusData } = await supabase
+        .from('v_student_status')
+        .select('student_id, status');
+
+      const { data: groupsData } = await supabase
+        .from('groups')
+        .select('*');
+
+      if (studentsData && statusData) {
+        const studentsWithStatus = studentsData.map((student: any) => {
+          const statusInfo = statusData.find((s: any) => s.student_id === student.id);
+          return {
+            student_id: student.id,
+            id: student.id,
+            full_name: student.full_name,
+            photo_url: student.photo_url,
+            group_name: student.groups?.name || null,
+            status: (statusInfo as any)?.status || 'Ativo',
+            birth_date: student.birth_date,
+            sex: student.sex,
+            guardian_name: student.guardian_name,
+            guardian_contact: student.guardian_contact,
+            notes: student.notes
+          };
+        });
+        setStudents(studentsWithStatus);
+      }
+      
+      if (groupsData) setGroups(groupsData);
     }
     
-    if (groupsData) setGroups(groupsData);
     setLoading(false);
   };
 
   const handleDelete = async (id: string) => {
+    const entityName = context === 'recepcao' ? 'membro' : 'aluno';
     const confirmed = await showConfirm({
-      title: 'Excluir Aluno',
-      message: 'Tem certeza que deseja excluir este aluno? Esta ação não pode ser desfeita.',
+      title: `Excluir ${entityName}`,
+      message: `Tem certeza que deseja excluir este ${entityName}? Esta ação não pode ser desfeita.`,
       confirmText: 'Excluir',
       cancelText: 'Cancelar',
       type: 'danger'
@@ -76,17 +133,19 @@ export function StudentsPage() {
     
     if (!confirmed) return;
 
-    const { error } = await (supabase as any).from('students').delete().eq('id', id);
+    const tableName = context === 'recepcao' ? 'reception_members' : 'students';
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
     if (error) {
-      showError('Erro ao excluir aluno', error.message);
+      showError(`Erro ao excluir ${entityName}`, error.message);
     } else {
-      showSuccess('Aluno excluído com sucesso!');
+      showSuccess(`${entityName} excluído com sucesso!`);
       loadData();
     }
   };
 
   const handleEdit = async (studentId: string) => {
-    const { data } = await supabase.from('students').select('*').eq('id', studentId).single();
+    const tableName = context === 'recepcao' ? 'reception_members' : 'students';
+    const { data } = await supabase.from(tableName).select('*').eq('id', studentId).single();
     if (data) {
       setEditingStudent(data);
       setShowForm(true);
@@ -94,7 +153,8 @@ export function StudentsPage() {
   };
 
   const handleView = async (studentId: string) => {
-    const { data } = await supabase.from('students').select('*').eq('id', studentId).single();
+    const tableName = context === 'recepcao' ? 'reception_members' : 'students';
+    const { data } = await supabase.from(tableName).select('*').eq('id', studentId).single();
     if (data) {
       setViewingStudent(data);
     }
@@ -110,14 +170,17 @@ export function StudentsPage() {
     const matchesSearch = s.full_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGroup = filterGroup === 'all' || s.group_name === filterGroup;
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
-    return matchesSearch && matchesGroup && matchesStatus;
+    const matchesMemberType = context === 'ministerio' || filterMemberType === 'all' || s.member_type === filterMemberType;
+    return matchesSearch && matchesGroup && matchesStatus && matchesMemberType;
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Ativo': return 'text-emerald-600 bg-emerald-50';
       case 'Faltoso': return 'text-amber-600 bg-amber-50';
+      case 'Moderado': return 'text-amber-600 bg-amber-50';
       case 'Inativo': return 'text-red-600 bg-red-50';
+      case 'Sem Registro': return 'text-gray-600 bg-gray-50';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
@@ -129,13 +192,15 @@ export function StudentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Alunos</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {context === 'recepcao' ? 'Membros' : 'Alunos'}
+        </h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+          className={`flex items-center gap-2 px-4 py-2 ${context === 'recepcao' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition-colors shadow-sm`}
         >
           <Plus size={20} />
-          Novo Aluno
+          {context === 'recepcao' ? 'Novo Membro' : 'Novo Aluno'}
         </button>
       </div>
 
@@ -145,7 +210,7 @@ export function StudentsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Buscar aluno..."
+              placeholder={context === 'recepcao' ? 'Buscar membro...' : 'Buscar aluno...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -154,24 +219,47 @@ export function StudentsPage() {
 
           <select
             value={filterGroup}
-            onChange={(e) => setFilterGroup(e.target.value as GroupName | 'all')}
+            onChange={(e) => setFilterGroup(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Todos os Grupos</option>
+            <option value="all">{context === 'recepcao' ? 'Todas as Células/Ministérios' : 'Todos os Grupos'}</option>
             {groups.map(g => (
               <option key={g.id} value={g.name}>{g.name}</option>
             ))}
           </select>
 
+          {context === 'recepcao' && (
+            <select
+              value={filterMemberType}
+              onChange={(e) => setFilterMemberType(e.target.value as MemberType | 'all')}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="all">Todos os Tipos</option>
+              <option value="Membro">Membros</option>
+              <option value="Visitante">Visitantes</option>
+            </select>
+          )}
+
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
+            onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">Todos os Status</option>
-            <option value="Ativo">Ativo</option>
-            <option value="Faltoso">Faltoso</option>
-            <option value="Inativo">Inativo</option>
+            {context === 'recepcao' ? (
+              <>
+                <option value="Ativo">Ativo</option>
+                <option value="Moderado">Moderado</option>
+                <option value="Inativo">Inativo</option>
+                <option value="Sem Registro">Sem Registro</option>
+              </>
+            ) : (
+              <>
+                <option value="Ativo">Ativo</option>
+                <option value="Faltoso">Faltoso</option>
+                <option value="Inativo">Inativo</option>
+              </>
+            )}
           </select>
         </div>
       </div>
@@ -193,9 +281,22 @@ export function StudentsPage() {
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(student.status)}`}>
                     {student.status}
                   </span>
+                  {context === 'recepcao' && student.member_type && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      student.member_type === 'Membro' ? 'text-blue-600 bg-blue-50' : 'text-purple-600 bg-purple-50'
+                    }`}>
+                      {student.member_type}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600">
-                  <span>Grupo: {student.group_name || '—'}</span>
+                  <span>{context === 'recepcao' ? 'Célula/Min.' : 'Grupo'}: {student.group_name || '—'}</span>
+                  {context === 'recepcao' && student.contact_phone && (
+                    <span>Tel: {student.contact_phone}</span>
+                  )}
+                  {context === 'recepcao' && student.attendance_percentage !== undefined && (
+                    <span>Freq.: {student.attendance_percentage}%</span>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -227,7 +328,7 @@ export function StudentsPage() {
 
         {filteredStudents.length === 0 && (
           <div className="text-center py-12 text-gray-500">
-            Nenhum aluno encontrado
+            {context === 'recepcao' ? 'Nenhum membro encontrado' : 'Nenhum aluno encontrado'}
           </div>
         )}
       </div>
@@ -237,6 +338,7 @@ export function StudentsPage() {
           student={editingStudent}
           groups={groups}
           onClose={handleFormClose}
+          context={context}
         />
       )}
 
@@ -246,7 +348,7 @@ export function StudentsPage() {
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h2 className="text-2xl font-bold text-gray-900">Detalhes do Aluno</h2>
+              <h2 className="text-2xl font-bold text-gray-900">{context === 'recepcao' ? 'Detalhes do Membro' : 'Detalhes do Aluno'}</h2>
               <button
                 onClick={() => setViewingStudent(null)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -297,22 +399,47 @@ export function StudentsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Grupo</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">{context === 'recepcao' ? 'Célula/Ministério' : 'Grupo'}</label>
                   <p className="text-gray-900">
                     {groups.find(g => g.id === viewingStudent.group_id)?.name || '—'}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Responsável</label>
-                    <p className="text-gray-900">{viewingStudent.guardian_name || '—'}</p>
+                {context === 'recepcao' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Tipo</label>
+                      <p className="text-gray-900">{viewingStudent.member_type || '—'}</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Telefone</label>
+                        <p className="text-gray-900">{viewingStudent.contact_phone || '—'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
+                        <p className="text-gray-900">{viewingStudent.contact_email || '—'}</p>
+                      </div>
+                    </div>
+                    {viewingStudent.address && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Endereço</label>
+                        <p className="text-gray-900">{viewingStudent.address}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Responsável</label>
+                      <p className="text-gray-900">{viewingStudent.guardian_name || '—'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Contato</label>
+                      <p className="text-gray-900">{viewingStudent.guardian_contact || '—'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Contato</label>
-                    <p className="text-gray-900">{viewingStudent.guardian_contact || '—'}</p>
-                  </div>
-                </div>
+                )}
 
                 {viewingStudent.notes && (
                   <div>
@@ -331,9 +458,9 @@ export function StudentsPage() {
                     setViewingStudent(null);
                     handleEdit(viewingStudent.id);
                   }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                  className={`flex-1 px-4 py-2 ${context === 'recepcao' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition-colors`}
                 >
-                  Editar Aluno
+                  {context === 'recepcao' ? 'Editar Membro' : 'Editar Aluno'}
                 </button>
               </div>
             </div>

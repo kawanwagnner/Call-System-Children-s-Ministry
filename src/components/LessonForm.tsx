@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Lesson, LessonInsert } from '../lib/database.types';
+import type { Lesson } from '../lib/database.types';
 import { useNotificationContext } from '../App';
 
 interface LessonFormProps {
   lesson: Lesson | null;
   onClose: () => void;
+  context: 'ministerio' | 'recepcao';
 }
 
-export function LessonForm({ lesson, onClose }: LessonFormProps) {
+export function LessonForm({ lesson, onClose, context }: LessonFormProps) {
   const { showSuccess, showError } = useNotificationContext();
-  const [formData, setFormData] = useState<LessonInsert>({
+  const [formData, setFormData] = useState<any>({
     title: '',
     date: new Date().toISOString().split('T')[0],
     teacher: null,
+    leader: null,
+    event_type: 'Culto',
+    start_time: null,
     notes: null,
   });
   const [saving, setSaving] = useState(false);
@@ -25,6 +29,9 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
         title: lesson.title,
         date: lesson.date,
         teacher: lesson.teacher,
+        leader: (lesson as any).leader,
+        event_type: (lesson as any).event_type || 'Culto',
+        start_time: (lesson as any).start_time,
         notes: lesson.notes,
       });
     }
@@ -36,34 +43,59 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
 
     try {
       if (lesson) {
+        const tableName = context === 'recepcao' ? 'reception_events' : 'lessons';
+        
+        let updateData: any = {
+          title: formData.title,
+          date: formData.date,
+          notes: formData.notes
+        };
+        
+        if (context === 'recepcao') {
+          updateData.leader = formData.leader;
+          updateData.event_type = formData.event_type;
+          updateData.start_time = formData.start_time;
+        } else {
+          updateData.teacher = formData.teacher;
+        }
+        
         const { error } = await (supabase as any)
-          .from('lessons')
-          .update({
-            title: formData.title,
-            date: formData.date,
-            teacher: formData.teacher,
-            notes: formData.notes
-          })
+          .from(tableName)
+          .update(updateData)
           .eq('id', lesson.id);
 
         if (error) throw error;
-        showSuccess('Aula atualizada com sucesso!');
+        const entityName = context === 'recepcao' ? 'Evento' : 'Aula';
+        showSuccess(`${entityName} atualizada com sucesso!`);
       } else {
+        const tableName = context === 'recepcao' ? 'reception_events' : 'lessons';
+        
+        let insertData: any = {
+          title: formData.title,
+          date: formData.date,
+          notes: formData.notes
+        };
+        
+        if (context === 'recepcao') {
+          insertData.leader = formData.leader;
+          insertData.event_type = formData.event_type;
+          insertData.start_time = formData.start_time;
+        } else {
+          insertData.teacher = formData.teacher;
+        }
+        
         const { error } = await (supabase as any)
-          .from('lessons')
-          .insert([{
-            title: formData.title,
-            date: formData.date,
-            teacher: formData.teacher,
-            notes: formData.notes
-          }]);
+          .from(tableName)
+          .insert([insertData]);
 
         if (error) throw error;
-        showSuccess('Aula criada com sucesso!');
+        const entityName = context === 'recepcao' ? 'Evento' : 'Aula';
+        showSuccess(`${entityName} criado com sucesso!`);
       }
     } catch (error: any) {
+      const entityName = context === 'recepcao' ? 'evento' : 'aula';
       showError(
-        lesson ? 'Erro ao atualizar aula' : 'Erro ao criar aula',
+        lesson ? `Erro ao atualizar ${entityName}` : `Erro ao criar ${entityName}`,
         error.message
       );
       setSaving(false);
@@ -79,7 +111,10 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full">
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-2xl font-bold text-gray-900">
-            {lesson ? 'Editar Aula' : 'Nova Aula'}
+            {lesson ? 
+              (context === 'recepcao' ? 'Editar Evento' : 'Editar Aula') : 
+              (context === 'recepcao' ? 'Novo Evento' : 'Nova Aula')
+            }
           </h2>
           <button
             onClick={onClose}
@@ -92,7 +127,7 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tema / Nome da Aula *
+              {context === 'recepcao' ? 'Nome do Evento *' : 'Tema / Nome da Aula *'}
             </label>
             <input
               type="text"
@@ -118,6 +153,52 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
               />
             </div>
 
+            {context === 'recepcao' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Horário de Início
+                </label>
+                <input
+                  type="time"
+                  value={formData.start_time || ''}
+                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Campos específicos para cada contexto */}
+          {context === 'recepcao' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Evento *
+                </label>
+                <select
+                  value={formData.event_type || 'Culto'}
+                  onChange={(e) => setFormData({ ...formData, event_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Culto">Culto</option>
+                  <option value="Reunião">Reunião</option>
+                  <option value="Evento Especial">Evento Especial</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Responsável
+                </label>
+                <input
+                  type="text"
+                  value={formData.leader || ''}
+                  onChange={(e) => setFormData({ ...formData, leader: e.target.value || null })}
+                  placeholder="Ex: Pastor João"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </>
+          ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Ministrante
@@ -130,7 +211,7 @@ export function LessonForm({ lesson, onClose }: LessonFormProps) {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

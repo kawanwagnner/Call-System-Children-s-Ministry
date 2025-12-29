@@ -5,9 +5,12 @@ import { useNotificationContext } from '../App';
 
 interface AbsentStudent {
   full_name: string;
-  guardian_name: string | null;
-  guardian_contact: string | null;
+  guardian_name?: string | null;
+  guardian_contact?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
   group_name: string | null;
+  member_type?: string;
 }
 
 interface StudentAttendanceStats {
@@ -15,6 +18,7 @@ interface StudentAttendanceStats {
   presenca_percent: number | null;
   presencas: number;
   faltas: number;
+  member_type?: string;
 }
 
 interface GroupAttendanceStats {
@@ -32,7 +36,11 @@ interface LessonAttendanceStats {
   total: number;
 }
 
-export function ReportsPage() {
+interface ReportsPageProps {
+  context?: 'ministerio' | 'recepcao';
+}
+
+export function ReportsPage({ context = 'ministerio' }: ReportsPageProps) {
   const { showError } = useNotificationContext();
   const [absentToday, setAbsentToday] = useState<AbsentStudent[]>([]);
   const [studentStats, setStudentStats] = useState<StudentAttendanceStats[]>([]);
@@ -43,52 +51,114 @@ export function ReportsPage() {
 
   useEffect(() => {
     loadReports();
-  }, [selectedDate]);
+  }, [selectedDate, context]);
 
   const loadReports = async () => {
     setLoading(true);
 
     try {
-      const [absentRes, studentRes, groupRes, lessonRes] = await Promise.all([
-      // Ausentes do dia selecionado
-      supabase.from('lessons').select(`
-        date,
-        attendance!inner(
-          present,
-          students!inner(
+      if (context === 'recepcao') {
+        // Carregar dados da recepção
+        const [membersRes, groupRes, eventsRes] = await Promise.all([
+          // Membros com estatísticas da view
+          supabase.from('v_reception_member_status').select('*'),
+          
+          // Grupos da recepção
+          supabase.from('reception_groups').select('*'),
+          
+          // Eventos recentes com resumo de presença
+          supabase.from('v_reception_attendance_summary').select('*').order('date', { ascending: false }).limit(10)
+        ]);
+
+        // Processar membros
+        if (membersRes.data) {
+          const memberStats = membersRes.data.map((member: any) => ({
+            full_name: member.full_name,
+            presenca_percent: member.attendance_percentage,
+            presencas: member.total_presences,
+            faltas: member.total_events - member.total_presences,
+            member_type: member.member_type
+          }));
+          setStudentStats(memberStats);
+
+          // Ausentes (simulado - membros com baixa frequência)
+          const lowAttendanceMembers = membersRes.data
+            .filter((m: any) => m.attendance_percentage < 50)
+            .map((m: any) => ({
+              full_name: m.full_name,
+              group_name: m.group_name,
+              member_type: m.member_type,
+              contact_phone: m.contact_phone,
+              contact_email: m.contact_email
+            }));
+          setAbsentToday(lowAttendanceMembers);
+        }
+
+        // Processar grupos
+        if (groupRes.data) {
+          const groupStats = groupRes.data.map((group: any) => ({
+            grupo: group.name,
+            presenca_percent: null, // Calcular depois se necessário
+            presencas: 0,
+            faltas: 0
+          }));
+          setGroupStats(groupStats);
+        }
+
+        // Processar eventos
+        if (eventsRes.data) {
+          const eventStats = eventsRes.data.map((event: any) => ({
+            date: event.date,
+            title: event.title,
+            presentes: event.total_present,
+            ausentes: event.total_absent,
+            total: event.total_registered
+          }));
+          setLessonStats(eventStats);
+        }
+
+      } else {
+        // Lógica original para ministério
+        const [absentRes, studentRes, groupRes, lessonRes] = await Promise.all([
+          // Ausentes do dia selecionado
+          supabase.from('lessons').select(`
+            date,
+            attendance!inner(
+              present,
+              students!inner(
+                full_name,
+                guardian_name,
+                guardian_contact,
+                groups(name)
+              )
+            )
+          `).eq('date', selectedDate).eq('attendance.present', false),
+          
+          // Estatísticas por aluno
+          supabase.from('students').select(`
+            id,
             full_name,
-            guardian_name,
-            guardian_contact,
-            groups(name)
-          )
-        )
-      `).eq('date', selectedDate).eq('attendance.present', false),
-      
-      // Estatísticas por aluno
-      supabase.from('students').select(`
-        id,
-        full_name,
-        attendance(present)
-      `),
-      
-      // Estatísticas por grupo
-      supabase.from('groups').select(`
-        id,
-        name,
-        students(
-          id,
-          attendance(present)
-        )
-      `),
-      
-      // Estatísticas das últimas 10 aulas
-      supabase.from('lessons').select(`
-        id,
-        date,
-        title,
-        attendance(present)
-      `).order('date', { ascending: false }).limit(10)
-    ]);
+            attendance(present)
+          `),
+          
+          // Estatísticas por grupo
+          supabase.from('groups').select(`
+            id,
+            name,
+            students(
+              id,
+              attendance(present)
+            )
+          `),
+          
+          // Estatísticas das últimas 10 aulas
+          supabase.from('lessons').select(`
+            id,
+            date,
+            title,
+            attendance(present)
+          `).order('date', { ascending: false }).limit(10)
+        ]);
 
     // Processar ausentes do dia
     if (absentRes.data) {
@@ -172,6 +242,7 @@ export function ReportsPage() {
       
       setLessonStats(lessonStatsProcessed);
     }
+      }
     } catch (error: any) {
       console.error('Erro ao carregar relatórios:', error);
       showError('Erro ao carregar relatórios', error.message);
@@ -204,11 +275,13 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
+      <h1 className="text-3xl font-bold text-gray-900">
+        {context === 'recepcao' ? 'Relatórios de Recepção' : 'Relatórios'}
+      </h1>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Data de Referência (para Ausentes)
+          {context === 'recepcao' ? 'Data de Referência' : 'Data de Referência (para Ausentes)'}
         </label>
         <input
           type="date"
@@ -223,11 +296,11 @@ export function ReportsPage() {
           <div className="p-3 bg-red-100 rounded-xl">
             <Calendar className="text-red-600" size={24} />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Ausentes do Dia ({formatDate(selectedDate)})</h2>
+          <h2 className="text-xl font-bold text-gray-900">{context === 'recepcao' ? 'Membros com Baixa Frequência' : `Ausentes do Dia (${formatDate(selectedDate)})`}</h2>
         </div>
 
         {absentToday.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">Nenhum ausente registrado nesta data</p>
+          <p className="text-gray-500 text-center py-8">{context === 'recepcao' ? 'Todos os membros têm boa frequência!' : 'Nenhum ausente registrado nesta data'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -235,7 +308,7 @@ export function ReportsPage() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Nome</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Grupo</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Responsável</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{context === 'recepcao' ? 'Tipo' : 'Responsável'}</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Contato</th>
                 </tr>
               </thead>
@@ -244,19 +317,33 @@ export function ReportsPage() {
                   <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">{student.full_name}</td>
                     <td className="py-3 px-4">{student.group_name || '—'}</td>
-                    <td className="py-3 px-4">{student.guardian_name || '—'}</td>
+                    <td className="py-3 px-4">{context === 'recepcao' ? (student.member_type || '—') : (student.guardian_name || '—')}</td>
                     <td className="py-3 px-4">
-                      {student.guardian_contact ? (
-                        <a
-                          href={generateWhatsAppLink(student.guardian_contact, student.full_name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-700 hover:text-green-800 underline transition-colors"
-                          title="Enviar mensagem no WhatsApp"
-                        >
-                          {student.guardian_contact}
-                        </a>
-                      ) : '—'}
+                      {context === 'recepcao' ? (
+                        student.contact_phone ? (
+                          <a
+                            href={generateWhatsAppLink(student.contact_phone, student.full_name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-700 hover:text-green-800 underline transition-colors"
+                            title="Enviar mensagem no WhatsApp"
+                          >
+                            {student.contact_phone}
+                          </a>
+                        ) : '—'
+                      ) : (
+                        student.guardian_contact ? (
+                          <a
+                            href={generateWhatsAppLink(student.guardian_contact, student.full_name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-700 hover:text-green-800 underline transition-colors"
+                            title="Enviar mensagem no WhatsApp"
+                          >
+                            {student.guardian_contact}
+                          </a>
+                        ) : '—'
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -271,7 +358,7 @@ export function ReportsPage() {
           <div className="p-3 bg-blue-100 rounded-xl">
             <Users className="text-blue-600" size={24} />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Presença por Aluno</h2>
+          <h2 className="text-xl font-bold text-gray-900">{context === 'recepcao' ? 'Presença por Membro' : 'Presença por Aluno'}</h2>
         </div>
 
         <div className="overflow-x-auto">

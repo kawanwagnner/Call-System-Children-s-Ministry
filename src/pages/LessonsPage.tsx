@@ -1,26 +1,31 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Pencil, Trash2, Calendar } from 'lucide-react';
-import type { Lesson } from '../lib/database.types';
+
 import { LessonForm } from '../components/LessonForm';
 import { useNotificationContext, useConfirmContext } from '../App';
 
-export function LessonsPage() {
+interface LessonsPageProps {
+  context?: 'ministerio' | 'recepcao';
+}
+
+export function LessonsPage({ context = 'ministerio' }: LessonsPageProps) {
   const { showSuccess, showError } = useNotificationContext();
   const { showConfirm } = useConfirmContext();
-  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [editingLesson, setEditingLesson] = useState<any | null>(null);
 
   useEffect(() => {
     loadLessons();
-  }, []);
+  }, [context]);
 
   const loadLessons = async () => {
     setLoading(true);
+    const tableName = context === 'recepcao' ? 'reception_events' : 'lessons';
     const { data } = await supabase
-      .from('lessons')
+      .from(tableName)
       .select('*')
       .order('date', { ascending: false });
 
@@ -29,9 +34,10 @@ export function LessonsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    const entityName = context === 'recepcao' ? 'evento' : 'aula';
     const confirmed = await showConfirm({
-      title: 'Excluir Aula',
-      message: 'Tem certeza que deseja excluir esta aula? Todos os registros de presença associados também serão excluídos.',
+      title: `Excluir ${entityName}`,
+      message: `Tem certeza que deseja excluir este ${entityName}? Todos os registros de presença associados também serão excluídos.`,
       confirmText: 'Excluir',
       cancelText: 'Cancelar',
       type: 'danger'
@@ -39,16 +45,17 @@ export function LessonsPage() {
     
     if (!confirmed) return;
 
-    const { error } = await (supabase as any).from('lessons').delete().eq('id', id);
+    const tableName = context === 'recepcao' ? 'reception_events' : 'lessons';
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
     if (error) {
-      showError('Erro ao excluir aula', error.message);
+      showError(`Erro ao excluir ${entityName}`, error.message);
     } else {
-      showSuccess('Aula excluída com sucesso!');
+      showSuccess(`${entityName} excluído com sucesso!`);
       loadLessons();
     }
   };
 
-  const handleEdit = (lesson: Lesson) => {
+  const handleEdit = (lesson: any) => {
     setEditingLesson(lesson);
     setShowForm(true);
   };
@@ -71,13 +78,15 @@ export function LessonsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Aulas</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {context === 'recepcao' ? 'Eventos' : 'Aulas'}
+        </h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+          className={`flex items-center gap-2 px-4 py-2 ${context === 'recepcao' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition-colors shadow-sm`}
         >
           <Plus size={20} />
-          Nova Aula
+          {context === 'recepcao' ? 'Novo Evento' : 'Nova Aula'}
         </button>
       </div>
 
@@ -91,9 +100,31 @@ export function LessonsPage() {
                   <span className="text-sm font-medium text-gray-600">{formatDate(lesson.date)}</span>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">{lesson.title}</h3>
-                {lesson.teacher && (
-                  <p className="text-sm text-gray-600">Ministrante: {lesson.teacher}</p>
-                )}
+                <div className="space-y-1">
+                  {context === 'recepcao' ? (
+                    <>
+                      {lesson.event_type && (
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                          lesson.event_type === 'Culto' ? 'text-blue-600 bg-blue-50' :
+                          lesson.event_type === 'Reunião' ? 'text-green-600 bg-green-50' :
+                          'text-purple-600 bg-purple-50'
+                        }`}>
+                          {lesson.event_type}
+                        </span>
+                      )}
+                      {lesson.start_time && (
+                        <p className="text-sm text-gray-600">Horário: {lesson.start_time}</p>
+                      )}
+                      {lesson.leader && (
+                        <p className="text-sm text-gray-600">Preletor: {lesson.leader}</p>
+                      )}
+                    </>
+                  ) : (
+                    lesson.teacher && (
+                      <p className="text-sm text-gray-600">Ministrante: {lesson.teacher}</p>
+                    )
+                  )}
+                </div>
                 {lesson.notes && (
                   <p className="text-sm text-gray-500 mt-2">{lesson.notes}</p>
                 )}
@@ -118,7 +149,7 @@ export function LessonsPage() {
 
         {lessons.length === 0 && (
           <div className="text-center py-12 text-gray-500">
-            Nenhuma aula cadastrada
+            {context === 'recepcao' ? 'Nenhum evento cadastrado' : 'Nenhuma aula cadastrada'}
           </div>
         )}
       </div>
@@ -127,6 +158,7 @@ export function LessonsPage() {
         <LessonForm
           lesson={editingLesson}
           onClose={handleFormClose}
+          context={context}
         />
       )}
     </div>

@@ -1,25 +1,29 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { X, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Student, Group, StudentInsert, Sex } from '../lib/database.types';
+import type { Sex } from '../lib/database.types';
 import { useNotificationContext } from '../App';
 import { Avatar } from './Avatar';
 
 interface StudentFormProps {
-  student: Student | null;
-  groups: Group[];
+  student: any | null;
+  groups: any[];
   onClose: () => void;
+  context: 'ministerio' | 'recepcao';
 }
 
-export function StudentForm({ student, groups, onClose }: StudentFormProps) {
+export function StudentForm({ student, groups, onClose, context }: StudentFormProps) {
   const { showSuccess, showError } = useNotificationContext();
-  const [formData, setFormData] = useState<StudentInsert>({
+  const [formData, setFormData] = useState<any>({
     full_name: '',
     birth_date: null,
     sex: null,
     group_id: null,
     guardian_name: null,
     guardian_contact: null,
+    contact_phone: null,
+    contact_email: null,
+    member_type: 'Membro',
     notes: null,
     photo_url: null,
   });
@@ -36,6 +40,9 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
         group_id: student.group_id,
         guardian_name: student.guardian_name,
         guardian_contact: student.guardian_contact,
+        contact_phone: student.contact_phone,
+        contact_email: student.contact_email,
+        member_type: student.member_type || 'Membro',
         notes: student.notes,
         photo_url: student.photo_url,
       });
@@ -151,50 +158,74 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
 
     try {
       if (student) {
+        const tableName = context === 'recepcao' ? 'reception_members' : 'students';
+        
+        let updateData: any = {
+          full_name: formData.full_name,
+          birth_date: formData.birth_date,
+          sex: formData.sex,
+          group_id: formData.group_id,
+          notes: formData.notes,
+          photo_url: formData.photo_url
+        };
+        
+        if (context === 'recepcao') {
+          updateData.contact_phone = formData.contact_phone;
+          updateData.contact_email = formData.contact_email;
+          updateData.member_type = formData.member_type;
+        } else {
+          updateData.guardian_name = formData.guardian_name;
+          updateData.guardian_contact = formData.guardian_contact;
+        }
+        
         const { error } = await (supabase as any)
-          .from('students')
-          .update({
-            full_name: formData.full_name,
-            birth_date: formData.birth_date,
-            sex: formData.sex,
-            group_id: formData.group_id,
-            guardian_name: formData.guardian_name,
-            guardian_contact: formData.guardian_contact,
-            notes: formData.notes,
-            photo_url: formData.photo_url
-          })
+          .from(tableName)
+          .update(updateData)
           .eq('id', student.id);
 
         if (error) throw error;
-        showSuccess('Aluno atualizado com sucesso!');
+        const entityName = context === 'recepcao' ? 'Membro' : 'Aluno';
+        showSuccess(`${entityName} atualizado com sucesso!`);
       } else {
+        const tableName = context === 'recepcao' ? 'reception_members' : 'students';
+        
+        let insertData: any = {
+          full_name: formData.full_name,
+          birth_date: formData.birth_date,
+          sex: formData.sex,
+          group_id: formData.group_id,
+          notes: formData.notes,
+          photo_url: formData.photo_url
+        };
+        
+        if (context === 'recepcao') {
+          insertData.contact_phone = formData.contact_phone;
+          insertData.contact_email = formData.contact_email;
+          insertData.member_type = formData.member_type;
+        } else {
+          insertData.guardian_name = formData.guardian_name;
+          insertData.guardian_contact = formData.guardian_contact;
+        }
+        
         const { error } = await (supabase as any)
-          .from('students')
-          .insert([{
-            full_name: formData.full_name,
-            birth_date: formData.birth_date,
-            sex: formData.sex,
-            group_id: formData.group_id,
-            guardian_name: formData.guardian_name,
-            guardian_contact: formData.guardian_contact,
-            notes: formData.notes,
-            photo_url: formData.photo_url
-          }]);
+          .from(tableName)
+          .insert([insertData]);
 
         if (error) throw error;
-        showSuccess('Aluno criado com sucesso!');
+        const entityName = context === 'recepcao' ? 'Membro' : 'Aluno';
+        showSuccess(`${entityName} criado com sucesso!`);
       }
+
+      onClose();
     } catch (error: any) {
+      const entityName = context === 'recepcao' ? 'membro' : 'aluno';
       showError(
-        student ? 'Erro ao atualizar aluno' : 'Erro ao criar aluno',
+        student ? `Erro ao atualizar ${entityName}` : `Erro ao criar ${entityName}`,
         error.message
       );
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setSaving(false);
-    onClose();
   };
 
   return (
@@ -202,7 +233,10 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-2xl font-bold text-gray-900">
-            {student ? 'Editar Aluno' : 'Novo Aluno'}
+            {student ? 
+              (context === 'recepcao' ? 'Editar Membro' : 'Editar Aluno') : 
+              (context === 'recepcao' ? 'Novo Membro' : 'Novo Aluno')
+            }
           </h2>
           <button
             onClick={onClose}
@@ -222,7 +256,7 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
               required
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              placeholder="Ex: João Silva Santos"
+              placeholder={context === 'recepcao' ? "Ex: Maria Silva Santos" : "Ex: João Silva Santos"}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -230,12 +264,12 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
           {/* Photo Upload Section */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Foto do Aluno
+              Foto {context === 'recepcao' ? 'do Membro' : 'do Aluno'}
             </label>
             <div className="flex items-center gap-4">
               <Avatar 
                 src={photoPreview || formData.photo_url} 
-                name={formData.full_name || 'Aluno'} 
+                name={formData.full_name || (context === 'recepcao' ? 'Membro' : 'Aluno')} 
                 size="xl"
               />
               <div className="flex-1">
@@ -322,42 +356,94 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
             </select>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nome do Responsável
-              </label>
-              <input
-                type="text"
-                value={formData.guardian_name || ''}
-                onChange={(e) => setFormData({ ...formData, guardian_name: e.target.value || null })}
-                placeholder="Ex: Maria Silva"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          {/* Campos específicos para cada contexto */}
+          {context === 'recepcao' ? (
+            <>
+              {/* Campo de Tipo de Membro para Recepção */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Membro
+                </label>
+                <select
+                  value={formData.member_type || 'Membro'}
+                  onChange={(e) => setFormData({ ...formData, member_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Membro">Membro</option>
+                  <option value="Visitante">Visitante</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contato do Responsável
-              </label>
-              <input
-                type="text"
-                value={formData.guardian_contact || ''}
-                onChange={(e) => setFormData({ ...formData, guardian_contact: e.target.value || null })}
-                placeholder="(11) 99999-9999"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
+              {/* Campos de contato para Recepção */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.contact_phone || ''}
+                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value || null })}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.contact_email || ''}
+                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value || null })}
+                    placeholder="email@exemplo.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Campos para Ministério Infantil */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nome do Responsável
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.guardian_name || ''}
+                    onChange={(e) => setFormData({ ...formData, guardian_name: e.target.value || null })}
+                    placeholder="Ex: Maria Silva"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Contato do Responsável
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.guardian_contact || ''}
+                    onChange={(e) => setFormData({ ...formData, guardian_contact: e.target.value || null })}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Observações
             </label>
             <textarea
+              rows={3}
               value={formData.notes || ''}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value || null })}
-              rows={3}
               placeholder="Informações adicionais sobre o aluno..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -376,7 +462,7 @@ export function StudentForm({ student, groups, onClose }: StudentFormProps) {
               disabled={saving}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? 'Salvando...' : (student ? 'Atualizar' : 'Criar')}
             </button>
           </div>
         </form>

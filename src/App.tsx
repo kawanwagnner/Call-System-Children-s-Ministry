@@ -1,5 +1,5 @@
 import { useState, createContext, useContext, useEffect } from 'react';
-import { Users, BookOpen, CheckSquare, BarChart3, Menu, X, Home } from 'lucide-react';
+import { Users, BookOpen, CheckSquare, BarChart3, Menu, X, Home, RotateCcw } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { StudentsPage } from './pages/StudentsPage';
 import { LessonsPage } from './pages/LessonsPage';
@@ -56,6 +56,22 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeHomeTab, setActiveHomeTab] = useState<'ministerio' | 'recepcao'>(() => {
+    try {
+      // Recuperar contexto salvo do localStorage
+      const savedContext = localStorage.getItem('call-system-context');
+      console.log('Contexto recuperado do localStorage:', savedContext);
+      
+      if (savedContext === 'recepcao' || savedContext === 'ministerio') {
+        return savedContext;
+      }
+    } catch (error) {
+      console.error('Erro ao acessar localStorage:', error);
+    }
+    
+    // Valor padrão se não houver contexto salvo ou houver erro
+    return 'ministerio';
+  });
   const {
     notifications,
     removeNotification,
@@ -71,10 +87,20 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
+      
+      // Mostrar contexto carregado apenas uma vez por sessão
+      const hasShownWelcome = sessionStorage.getItem('context-welcome-shown');
+      if (activeHomeTab === 'recepcao' && !hasShownWelcome) {
+        showInfo(
+          'Contexto carregado',
+          'Suas preferências foram restauradas: Recepção'
+        );
+        sessionStorage.setItem('context-welcome-shown', 'true');
+      }
     }, 2500); // 2.5 segundos de loading
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [activeHomeTab, showInfo]);
 
   const notificationContextValue = {
     showSuccess,
@@ -87,7 +113,36 @@ function App() {
     showConfirm
   };
 
-  const navigation = [
+  // Função para salvar o contexto no localStorage
+  const handleTabChange = (tab: 'ministerio' | 'recepcao') => {
+    const previousTab = activeHomeTab;
+    
+    try {
+      // Salvar no localStorage
+      localStorage.setItem('call-system-context', tab);
+      console.log('Contexto salvo no localStorage:', tab);
+      
+      // Verificar se foi salvo corretamente
+      const verified = localStorage.getItem('call-system-context');
+      console.log('Verificação do localStorage:', verified);
+      
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+    }
+    
+    // Atualizar o estado
+    setActiveHomeTab(tab);
+    
+    // Mostrar notificação apenas se houve mudança e não é o primeiro carregamento
+    if (previousTab !== tab) {
+      showInfo(
+        `Contexto alterado para ${tab === 'recepcao' ? 'Recepção' : 'Ministério Infantil'}`,
+        'Preferência salva'
+      );
+    }
+  };
+
+  const ministerioNavigation = [
     { id: 'home' as Page, name: 'Início', icon: Home },
     { id: 'attendance' as Page, name: 'Chamada', icon: CheckSquare },
     { id: 'students' as Page, name: 'Alunos', icon: Users },
@@ -95,20 +150,38 @@ function App() {
     { id: 'reports' as Page, name: 'Relatórios', icon: BarChart3 },
   ];
 
+  const recepcaoNavigation = [
+    { id: 'home' as Page, name: 'Início', icon: Home },
+    { id: 'attendance' as Page, name: 'Check-in', icon: CheckSquare },
+    { id: 'students' as Page, name: 'Membros', icon: Users },
+    { id: 'lessons' as Page, name: 'Eventos', icon: BookOpen },
+    { id: 'reports' as Page, name: 'Relatórios', icon: BarChart3 },
+  ];
+
+  // Usar navegação baseada na aba ativa (mantém contexto em todas as páginas)
+  const getNavigation = () => {
+    if (activeHomeTab === 'recepcao') {
+      return recepcaoNavigation;
+    }
+    return ministerioNavigation;
+  };
+
+  const navigation = getNavigation();
+
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <HomePage onNavigate={setCurrentPage} />;
+        return <HomePage onNavigate={setCurrentPage} onTabChange={handleTabChange} activeTab={activeHomeTab} />;
       case 'students':
-        return <StudentsPage />;
+        return <StudentsPage context={activeHomeTab} />;
       case 'lessons':
-        return <LessonsPage />;
+        return <LessonsPage context={activeHomeTab} />;
       case 'attendance':
-        return <AttendancePage />;
+        return <AttendancePage context={activeHomeTab} />;
       case 'reports':
-        return <ReportsPage />;
+        return <ReportsPage context={activeHomeTab} />;
       default:
-        return <HomePage onNavigate={setCurrentPage} />;
+        return <HomePage onNavigate={setCurrentPage} onTabChange={handleTabChange} activeTab={activeHomeTab} />;
     }
   };
 
@@ -125,10 +198,15 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
-                <BookOpen className="text-blue-600" size={32} />
+                <BookOpen className={activeHomeTab === 'recepcao' ? 'text-teal-600' : 'text-blue-600'} size={32} />
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">Ministério Infantil</h1>
-                  <p className="text-xs text-gray-500">Sistema de Chamada</p>
+                  <h1 className="text-xl font-bold text-gray-900">
+                    {activeHomeTab === 'recepcao' ? 'Recepção' : 'Ministério Infantil'}
+                  </h1>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-gray-500">Sistema de Chamada</p>
+                    <div className={`w-2 h-2 rounded-full ${activeHomeTab === 'recepcao' ? 'bg-teal-500' : 'bg-blue-500'} animate-pulse`} title="Contexto salvo automaticamente"></div>
+                  </div>
                 </div>
               </div>
 
@@ -141,7 +219,7 @@ function App() {
                     onClick={() => setCurrentPage(item.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                       currentPage === item.id
-                        ? 'bg-blue-600 text-white'
+                        ? (activeHomeTab === 'recepcao' ? 'bg-teal-600 text-white' : 'bg-blue-600 text-white')
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
@@ -152,12 +230,24 @@ function App() {
               })}
             </div>
 
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  handleTabChange('ministerio');
+                  showInfo('Contexto resetado', 'Voltou para Ministério Infantil como padrão');
+                }}
+                className="hidden md:block p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                title="Resetar para Ministério Infantil"
+              >
+                <RotateCcw size={18} />
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+              >
+                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -175,7 +265,7 @@ function App() {
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                       currentPage === item.id
-                        ? 'bg-blue-600 text-white'
+                        ? (activeHomeTab === 'recepcao' ? 'bg-teal-600 text-white' : 'bg-blue-600 text-white')
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
